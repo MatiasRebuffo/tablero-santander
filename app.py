@@ -50,10 +50,20 @@ if archivo_base and archivo_pagos and archivo_gestiones:
         lista_gestores = sorted(df_gestiones['GESTOR'].dropna().unique())
         gestores_sel = st.multiselect("Gestores", options=lista_gestores, default=lista_gestores)
         
-        # Filtro Rango de Fechas de Pago
-        min_date = df_pagos['FECHA_PAGO_DT'].min().date()
-        max_date = df_pagos['FECHA_PAGO_DT'].max().date()
-        rango_fecha = st.date_input("Rango de Pagos", [min_date, max_date])
+        # Filtro Rango de Fechas de Pago (REPARADO: Filtra valores vacíos para que no rompa)
+        fechas_validas = df_pagos['FECHA_PAGO_DT'].dropna()
+        if not fechas_validas.empty:
+            min_date = fechas_validas.min().date()
+            max_date = fechas_validas.max().date()
+        else:
+            min_date = pd.Timestamp.now().date()
+            max_date = pd.Timestamp.now().date()
+        
+        # Controlamos que si las fechas son iguales o vacías no rompa el widget
+        if min_date == max_date:
+            rango_fecha = st.date_input("Rango de Pagos", [min_date, min_date])
+        else:
+            rango_fecha = st.date_input("Rango de Pagos", [min_date, max_date])
         
         # Filtro Estado (Si existe columna ESTADO en tu base)
         col_estado = 'ESTADO' if 'ESTADO' in df_base.columns else None
@@ -64,7 +74,7 @@ if archivo_base and archivo_pagos and archivo_gestiones:
     # --- APLICAR FILTROS ---
     df_gestiones_f = df_gestiones[df_gestiones['GESTOR'].isin(gestores_sel)]
     
-    # Controlamos que el rango de fechas esté bien seleccionado
+    # Aplicar filtro de rango de fechas de manera segura
     if isinstance(rango_fecha, (list, tuple)) and len(rango_fecha) == 2:
         mask_pagos = (df_pagos['FECHA_PAGO_DT'].dt.date >= rango_fecha[0]) & (df_pagos['FECHA_PAGO_DT'].dt.date <= rango_fecha[1])
         df_pagos_f = df_pagos[mask_pagos]
@@ -111,7 +121,7 @@ if archivo_base and archivo_pagos and archivo_gestiones:
 
     st.write("---")
 
-    # 3. Tablas Dinámicas (Tus cuadros clásicos al final)
+    # 3. Tablas Dinámicas (Tu cuadro actual al final)
     st.header("📋 Detalle de Productividad")
     tab1, tab2 = st.tabs(["💬 Casos Totales", "👤 Casos Únicos"])
     
@@ -126,7 +136,7 @@ if archivo_base and archivo_pagos and archivo_gestiones:
 
     with tab2:
         if not df_gestiones_f.empty:
-            din_uni = pd.pivot_table(df_gestiones_f, index='GESTOR', columns='FECHA_DT', values='CUENTA', 
+            din_uni = pd.pivot_table(df_gestiones_f, index='FECHA_DT', columns='GESTOR', values='CUENTA', 
                                     aggfunc='nunique', margins=True, margins_name='Total general').fillna(0).astype(int)
             din_uni.columns = [c.strftime('%d/%m') if isinstance(c, pd.Timestamp) else c for c in din_uni.columns]
             st.dataframe(din_uni, use_container_width=True)
