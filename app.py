@@ -2,19 +2,29 @@ import streamlit as st
 import pandas as pd
 
 # Configuramos la página para que se vea ancha y linda
-st.set_page_config(page_title="Tablero Santander", layout="wide")
+st.set_page_config(page_title="Tablero Santander - Besser Weiss", layout="wide")
 
+# --- BARRA LATERAL (SIDEBAR) ---
+# Colocamos el logo arriba de todo en la barra lateral
+# Nota: Asegurate de subir la imagen 'logo.png' a tu GitHub junto al archivo app.py
+try:
+    st.sidebar.image("logo.png", use_container_width=True)
+except:
+    # Si aún no subiste la imagen, muestra el nombre en texto para no romper la app
+    st.sidebar.header("🛡️ Besser Weiss")
+
+st.sidebar.header("📁 Carga de Archivos Crudos")
+archivo_base = st.sidebar.file_uploader("1. Subir BASE SANTANDER (Excel)", type=["xlsx"])
+archivo_pagos = st.sidebar.file_uploader("2. Subir PAGOS (Excel)", type=["xlsx"])
+archivo_gestiones = st.sidebar.file_uploader("3. Subir GESTIONES (Excel)", type=["xlsx"])
+
+
+# --- CUERPO PRINCIPAL ---
 st.title("📊 Tablero de Control de Cobranzas - Santander")
 st.markdown("Subí los tres archivos crudos del CRM para actualizar las métricas y dinámicas al instante.")
 
 # Forzamos formato plata para los datos que muestre Pandas
 pd.options.display.float_format = '${:,.2f}'.format
-
-# 1. Creamos la barra lateral para subir los archivos
-st.sidebar.header("📁 Carga de Archivos Crudos")
-archivo_base = st.sidebar.file_uploader("1. Subir BASE SANTANDER (Excel)", type=["xlsx"])
-archivo_pagos = st.sidebar.file_uploader("2. Subir PAGOS (Excel)", type=["xlsx"])
-archivo_gestiones = st.sidebar.file_uploader("3. Subir GESTIONES (Excel)", type=["xlsx"])
 
 # 2. Si el usuario subió los 3 archivos, arranca el proceso automático
 if archivo_base and archivo_pagos and archivo_gestiones:
