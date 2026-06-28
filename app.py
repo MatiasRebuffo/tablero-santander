@@ -1,149 +1,103 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 
-# 1. Configuración de página y estética corporativa
-st.set_page_config(page_title="Besser Weiss - Dashboard", layout="wide", initial_sidebar_state="expanded")
+# Configuramos la página para que se vea ancha y linda
+st.set_page_config(page_title="Tablero Santander", layout="wide")
 
-# CSS personalizado para mejorar el look a modo oscuro premium
-st.markdown("""
-    <style>
-    .main { background-color: #0e1117; }
-    .stMetric { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
-    [data-testid="stSidebar"] { background-color: #0d1117; border-right: 1px solid #30363d; }
-    </style>
-    """, unsafe_allow_html=True)
+st.title("📊 Tablero de Control de Cobranzas - Santander")
+st.markdown("Subí los tres archivos crudos del CRM para actualizar las métricas y dinámicas al instante.")
 
-# --- SIDEBAR (CARGA Y FILTROS) ---
-with st.sidebar:
-    st.title("🛡️ Besser Weiss")
-    st.subheader("📁 Carga de Datos")
-    archivo_base = st.file_uploader("Base Santander", type=["xlsx"])
-    archivo_pagos = st.file_uploader("Pagos", type=["xlsx"])
-    archivo_gestiones = st.file_uploader("Gestiones", type=["xlsx"])
-    
-    st.write("---")
-    st.subheader("🎯 Filtros")
+# Forzamos formato plata para los datos que muestre Pandas
+pd.options.display.float_format = '${:,.2f}'.format
 
-# --- LÓGICA DE PROCESAMIENTO ---
+# 1. Creamos la barra lateral para subir los archivos
+st.sidebar.header("📁 Carga de Archivos Crudos")
+archivo_base = st.sidebar.file_uploader("1. Subir BASE SANTANDER (Excel)", type=["xlsx"])
+archivo_pagos = st.sidebar.file_uploader("2. Subir PAGOS (Excel)", type=["xlsx"])
+archivo_gestiones = st.sidebar.file_uploader("3. Subir GESTIONES (Excel)", type=["xlsx"])
+
+# 2. Si el usuario subió los 3 archivos, arranca el proceso automático
 if archivo_base and archivo_pagos and archivo_gestiones:
-    # Carga de datos
-    df_base = pd.read_excel(archivo_base)
-    df_pagos = pd.read_excel(archivo_pagos)
-    df_gestiones = pd.read_excel(archivo_gestiones)
-    
-    # Estandarizar columnas a mayúsculas
-    for df in [df_base, df_pagos, df_gestiones]:
-        df.columns = df.columns.str.upper().str.strip()
+    with st.spinner("Procesando datos y armando tablas..."):
+        
+        # Leemos los Excels directamente de la memoria de la web
+        df_base = pd.read_excel(archivo_base)
+        df_pagos = pd.read_excel(archivo_pagos)
+        df_gestiones = pd.read_excel(archivo_gestiones)
 
-    # Procesar fechas de gestiones y pagos
-    df_gestiones['FECHA_DT'] = pd.to_datetime(df_gestiones['FECHA'], errors='coerce')
-    col_fecha_pago = 'FECHA' if 'FECHA' in df_pagos.columns else df_pagos.columns[0]
-    df_pagos['FECHA_PAGO_DT'] = pd.to_datetime(df_pagos[col_fecha_pago], errors='coerce')
+        # Estandarizamos columnas a mayúsculas
+        df_base.columns = df_base.columns.str.upper().str.strip()
+        df_pagos.columns = df_pagos.columns.str.upper().str.strip()
+        df_gestiones.columns = df_gestiones.columns.str.upper().str.strip()
 
-    # Unión de datos principal
-    df_cruce = pd.merge(df_base, df_pagos, on='DOCUMENTO', how='left')
+        # Hacemos el cruce principal
+        df_cruce = pd.merge(df_base, df_pagos, on='DOCUMENTO', how='left')
 
-    # --- CONFIGURACIÓN DE FILTROS EN SIDEBAR ---
-    with st.sidebar:
-        # Filtro Gestores
+        # --- SECCIÓN 1: METRICAS CLAVE ---
+        total_recaudado = df_cruce['IMPORTE'].sum()
+        total_clientes_base = df_cruce['DOCUMENTO'].nunique()
+        clientes_que_pagaron = df_cruce[df_cruce['IMPORTE'].notna()]['DOCUMENTO'].nunique()
+
+        st.header("📌 Resumen Ejecutivo del Mes")
+        
+        # Creamos 4 tarjetitas visuales con métricas
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Clientes Totales", f"{total_clientes_base:,}")
+        m2.metric("Clientes con Pago", f"{clientes_que_pagaron:,}")
+        m3.metric("% Efectividad", f"{(clientes_que_pagaron / total_clientes_base * 100):.2f}%")
+        m4.metric("Total Recaudado", f"${total_recaudado:,.2f}")
+
+        # --- SECCIÓN 2: FILTRO DE GESTORES ---
+        df_gestiones['FECHA_DT'] = pd.to_datetime(df_gestiones['FECHA'], errors='coerce')
+
+        st.write("---")
+        st.header("🔍 Filtros de Visualización")
+        
+        # Extraemos la lista única de gestores ordenados alfabéticamente
         lista_gestores = sorted(df_gestiones['GESTOR'].dropna().unique())
-        gestores_sel = st.multiselect("Gestores", options=lista_gestores, default=lista_gestores)
         
-        # Filtro Rango de Fechas de Pago (REPARADO: Filtra valores vacíos para que no rompa)
-        fechas_validas = df_pagos['FECHA_PAGO_DT'].dropna()
-        if not fechas_validas.empty:
-            min_date = fechas_validas.min().date()
-            max_date = fechas_validas.max().date()
+        # Creamos el componente de selección múltiple
+        gestores_seleccionados = st.multiselect(
+            "Seleccioná los gestores que querés ver en las tablas (borrá o agregá nombres):",
+            options=lista_gestores,
+            default=lista_gestores  # Por defecto arranca con todos marcados
+        )
+
+        # Validamos que al menos haya un gestor seleccionado para no romper las tablas
+        if not gestores_seleccionados:
+            st.warning("⚠️ Por favor, seleccioná al menos un gestor en el cuadro de arriba para mostrar los resultados.")
         else:
-            min_date = pd.Timestamp.now().date()
-            max_date = pd.Timestamp.now().date()
-        
-        # Controlamos que si las fechas son iguales o vacías no rompa el widget
-        if min_date == max_date:
-            rango_fecha = st.date_input("Rango de Pagos", [min_date, min_date])
-        else:
-            rango_fecha = st.date_input("Rango de Pagos", [min_date, max_date])
-        
-        # Filtro Estado (Si existe columna ESTADO en tu base)
-        col_estado = 'ESTADO' if 'ESTADO' in df_base.columns else None
-        if col_estado:
-            lista_estados = sorted(df_base[col_estado].dropna().unique())
-            estados_sel = st.multiselect("Estado", options=lista_estados, default=lista_estados)
+            # Filtramos el DataFrame original según lo que eligió el usuario
+            df_gestiones_filtrado = df_gestiones[df_gestiones['GESTOR'].isin(gestores_seleccionados)]
 
-    # --- APLICAR FILTROS ---
-    df_gestiones_f = df_gestiones[df_gestiones['GESTOR'].isin(gestores_sel)]
-    
-    # Aplicar filtro de rango de fechas de manera segura
-    if isinstance(rango_fecha, (list, tuple)) and len(rango_fecha) == 2:
-        mask_pagos = (df_pagos['FECHA_PAGO_DT'].dt.date >= rango_fecha[0]) & (df_pagos['FECHA_PAGO_DT'].dt.date <= rango_fecha[1])
-        df_pagos_f = df_pagos[mask_pagos]
-    else:
-        df_pagos_f = df_pagos
-        
-    # --- CUERPO PRINCIPAL ---
-    st.title("📊 Dashboard Besser Weiss")
-    
-    # 1. Kpis (Tarjetas de totales superiores)
-    m1, m2, m3, m4 = st.columns(4)
-    total_recaudado = df_pagos_f['IMPORTE'].sum() if 'IMPORTE' in df_pagos_f.columns else 0
-    m1.metric("Total Recaudado", f"${total_recaudado:,.0f}")
-    m2.metric("Gestiones Totales", f"{len(df_gestiones_f):,}")
-    m3.metric("Clientes Únicos", f"{df_gestiones_f['DOCUMENTO'].nunique():,}")
-    m4.metric("Promedio Gestión", f"{(len(df_gestiones_f)/df_gestiones_f['DOCUMENTO'].nunique() if df_gestiones_f['DOCUMENTO'].nunique() > 0 else 0):.1f}")
+            # Dinámica 1: Casos Totales (con la base filtrada)
+            dinamica_totales = pd.pivot_table(
+                df_gestiones_filtrado, index='GESTOR', columns='FECHA_DT', values='CUENTA', aggfunc='count',
+                margins=True, margins_name='Total general'
+            ).fillna(0).astype(int)
+            dinamica_totales.columns = [col.strftime('%d/%m/%Y') if isinstance(col, pd.Timestamp) else col for col in dinamica_totales.columns]
 
-    st.write("---")
+            # Dinámica 2: Casos Únicos (con la base filtrada)
+            dinamica_unicos = pd.pivot_table(
+                df_gestiones_filtrado, index='GESTOR', columns='FECHA_DT', values='CUENTA', aggfunc='nunique',
+                margins=True, margins_name='Total general'
+            ).fillna(0).astype(int)
+            dinamica_unicos.columns = [col.strftime('%d/%m/%Y') if isinstance(col, pd.Timestamp) else col for col in dinamica_unicos.columns]
 
-    # 2. Bloque de Gráficos Interactivos
-    g1, g2 = st.columns([6, 4])
-    
-    with g1:
-        st.subheader("📈 Evolución de Pagos (Timeline)")
-        if not df_pagos_f.empty and 'IMPORTE' in df_pagos_f.columns:
-            pagos_serie = df_pagos_f.groupby('FECHA_PAGO_DT')['IMPORTE'].sum().reset_index()
-            fig_line = px.area(pagos_serie, x='FECHA_PAGO_DT', y='IMPORTE', 
-                               template="plotly_dark", color_discrete_sequence=['#00f2ff'])
-            fig_line.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=300)
-            st.plotly_chart(fig_line, use_container_width=True)
-        else:
-            st.info("No hay datos de pagos para este rango.")
-
-    with g2:
-        st.subheader("🏆 Rendimiento por Gestor")
-        if not df_gestiones_f.empty:
-            gestor_perf = df_gestiones_f.groupby('GESTOR').size().reset_index(name='GESTIONES').sort_values('GESTIONES', ascending=False).head(10)
-            fig_bar = px.bar(gestor_perf, x='GESTIONES', y='GESTOR', orientation='h',
-                             template="plotly_dark", color_discrete_sequence=['#5865f2'])
-            fig_bar.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=300)
-            st.plotly_chart(fig_bar, use_container_width=True)
-        else:
-            st.info("No hay datos de gestiones.")
-
-    st.write("---")
-
-    # 3. Tablas Dinámicas (Tu cuadro actual al final)
-    st.header("📋 Detalle de Productividad")
-    tab1, tab2 = st.tabs(["💬 Casos Totales", "👤 Casos Únicos"])
-    
-    with tab1:
-        if not df_gestiones_f.empty:
-            din_tot = pd.pivot_table(df_gestiones_f, index='GESTOR', columns='FECHA_DT', values='CUENTA', 
-                                    aggfunc='count', margins=True, margins_name='Total general').fillna(0).astype(int)
-            din_tot.columns = [c.strftime('%d/%m') if isinstance(c, pd.Timestamp) else c for c in din_tot.columns]
-            st.dataframe(din_tot, use_container_width=True)
-        else:
-            st.info("Seleccioná al menos un gestor para armar la tabla.")
-
-    with tab2:
-        if not df_gestiones_f.empty:
-            din_uni = pd.pivot_table(df_gestiones_f, index='FECHA_DT', columns='GESTOR', values='CUENTA', 
-                                    aggfunc='nunique', margins=True, margins_name='Total general').fillna(0).astype(int)
-            din_uni.columns = [c.strftime('%d/%m') if isinstance(c, pd.Timestamp) else c for c in din_uni.columns]
-            st.dataframe(din_uni, use_container_width=True)
-        else:
-            st.info("Seleccioná al menos un gestor para armar la tabla.")
+            st.write("---")
+            st.header("📈 Reporte de Productividad de Gestores")
+            
+            # Creamos solapas para cambiar entre Totales y Únicos limpiamente
+            tab1, tab2 = st.tabs(["💬 Casos Totales (Llamadas)", "👤 Casos Únicos (Cuentas Tocadas)"])
+            
+            with tab1:
+                st.subheader("Evolución Diaria - Gestiones Hechas")
+                st.dataframe(dinamica_totales, use_container_width=True)
+                
+            with tab2:
+                st.subheader("Evolución Diaria - Clientes Únicos Contactados")
+                st.dataframe(dinamica_unicos, use_container_width=True)
 
 else:
-    # Portada estética de espera
-    st.image("https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1000", use_container_width=True)
-    st.warning("⚠️ Esperando carga de archivos en el panel de la izquierda para generar el reporte Besser Weiss.")
+    # Mensaje de bienvenida si todavía falta subir algún archivo
+    st.info("👋 ¡Todo listo! Por favor, arrastrá los 3 archivos de Excel en el menú de la izquierda para ver la magia.")
