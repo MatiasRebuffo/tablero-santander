@@ -23,9 +23,6 @@ archivo_base = st.sidebar.file_uploader("1. Subir BASE SANTANDER (Excel)", type=
 archivo_pagos = st.sidebar.file_uploader("2. Subir PAGOS (Excel)", type=["xlsx"])
 archivo_gestiones = st.sidebar.file_uploader("3. Subir GESTIONES (Excel)", type=["xlsx"])
 
-# ... (El resto de tu código base abajo sigue exactamente igual)
-
-
 # --- CUERPO PRINCIPAL ---
 st.title("📊 Tablero de Control de Cobranzas - Santander")
 st.markdown("Subí los tres archivos crudos del CRM para actualizar las métricas y dinámicas al instante.")
