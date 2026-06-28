@@ -21,7 +21,7 @@ st.markdown("""
 
 # --- BARRA LATERAL (SIDEBAR) ---
 try:
-    st.sidebar.image("image_3f4829.png", use_container_width=True)
+    st.sidebar.image("logo.png", use_container_width=True)
 except:
     st.sidebar.header("🛡️ Besser Weiss")
 
