@@ -4,13 +4,25 @@ import pandas as pd
 # Configuramos la página para que se vea ancha y linda
 st.set_page_config(page_title="Tablero Santander - Besser Weiss", layout="wide")
 
+# --- TRUCO CSS PARA PEGAR LA IMAGEN BIEN ARRIBA ---
+st.markdown("""
+    <style>
+    /* Quita el espacio vacío del contenedor de la barra lateral */
+    [data-testid="stSidebarContent"] > div:first-child {
+        padding-top: 0rem !important;
+    }
+    [data-testid="stSidebarUserContent"] {
+        padding-top: 0rem !important;
+        margin-top: -35px !important; /* Fuerza a la imagen a subir */
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- BARRA LATERAL (SIDEBAR) ---
-# Colocamos el logo arriba de todo en la barra lateral
-# Nota: Asegurate de subir la imagen 'logo.png' a tu GitHub junto al archivo app.py
+# Usamos el nombre exacto de la imagen que tenés guardada
 try:
-    st.sidebar.image("logo.png", use_container_width=True)
+    st.sidebar.image("image_3f4829.png", use_container_width=True)
 except:
-    # Si aún no subiste la imagen, muestra el nombre en texto para no romper la app
     st.sidebar.header("🛡️ Besser Weiss")
 
 st.sidebar.header("📁 Carga de Archivos Crudos")
