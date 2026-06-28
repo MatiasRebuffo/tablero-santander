@@ -47,36 +47,56 @@ if archivo_base and archivo_pagos and archivo_gestiones:
         m3.metric("% Efectividad", f"{(clientes_que_pagaron / total_clientes_base * 100):.2f}%")
         m4.metric("Total Recaudado", f"${total_recaudado:,.2f}")
 
-        # --- SECCIÓN 2: TABLAS DINÁMICAS (PRODUCCIÓN DIARIA) ---
+        # --- SECCIÓN 2: FILTRO DE GESTORES ---
         df_gestiones['FECHA_DT'] = pd.to_datetime(df_gestiones['FECHA'], errors='coerce')
 
-        # Dinámica 1: Casos Totales
-        dinamica_totales = pd.pivot_table(
-            df_gestiones, index='GESTOR', columns='FECHA_DT', values='CUENTA', aggfunc='count',
-            margins=True, margins_name='Total general'
-        ).fillna(0).astype(int)
-        dinamica_totales.columns = [col.strftime('%d/%m/%Y') if isinstance(col, pd.Timestamp) else col for col in dinamica_totales.columns]
-
-        # Dinámica 2: Casos Únicos
-        dinamica_unicos = pd.pivot_table(
-            df_gestiones, index='GESTOR', columns='FECHA_DT', values='CUENTA', aggfunc='nunique',
-            margins=True, margins_name='Total general'
-        ).fillna(0).astype(int)
-        dinamica_unicos.columns = [col.strftime('%d/%m/%Y') if isinstance(col, pd.Timestamp) else col for col in dinamica_unicos.columns]
-
         st.write("---")
-        st.header("📈 Reporte de Productividad de Gestores")
+        st.header("🔍 Filtros de Visualización")
         
-        # Creamos solapas para cambiar entre Totales y Únicos limpiamente
-        tab1, tab2 = st.tabs(["💬 Casos Totales (Llamadas)", "👤 Casos Únicos (Cuentas Tocadas)"])
+        # Extraemos la lista única de gestores ordenados alfabéticamente
+        lista_gestores = sorted(df_gestiones['GESTOR'].dropna().unique())
         
-        with tab1:
-            st.subheader("Evolución Diaria - Gestiones Hechas")
-            st.dataframe(dinamica_totales, use_container_width=True)
+        # Creamos el componente de selección múltiple
+        gestores_seleccionados = st.multiselect(
+            "Seleccioná los gestores que querés ver en las tablas (borrá o agregá nombres):",
+            options=lista_gestores,
+            default=lista_gestores  # Por defecto arranca con todos marcados
+        )
+
+        # Validamos que al menos haya un gestor seleccionado para no romper las tablas
+        if not gestores_seleccionados:
+            st.warning("⚠️ Por favor, seleccioná al menos un gestor en el cuadro de arriba para mostrar los resultados.")
+        else:
+            # Filtramos el DataFrame original según lo que eligió el usuario
+            df_gestiones_filtrado = df_gestiones[df_gestiones['GESTOR'].isin(gestores_seleccionados)]
+
+            # Dinámica 1: Casos Totales (con la base filtrada)
+            dinamica_totales = pd.pivot_table(
+                df_gestiones_filtrado, index='GESTOR', columns='FECHA_DT', values='CUENTA', aggfunc='count',
+                margins=True, margins_name='Total general'
+            ).fillna(0).astype(int)
+            dinamica_totales.columns = [col.strftime('%d/%m/%Y') if isinstance(col, pd.Timestamp) else col for col in dinamica_totales.columns]
+
+            # Dinámica 2: Casos Únicos (con la base filtrada)
+            dinamica_unicos = pd.pivot_table(
+                df_gestiones_filtrado, index='GESTOR', columns='FECHA_DT', values='CUENTA', aggfunc='nunique',
+                margins=True, margins_name='Total general'
+            ).fillna(0).astype(int)
+            dinamica_unicos.columns = [col.strftime('%d/%m/%Y') if isinstance(col, pd.Timestamp) else col for col in dinamica_unicos.columns]
+
+            st.write("---")
+            st.header("📈 Reporte de Productividad de Gestores")
             
-        with tab2:
-            st.subheader("Evolución Diaria - Clientes Únicos Contactados")
-            st.dataframe(dinamica_unicos, use_container_width=True)
+            # Creamos solapas para cambiar entre Totales y Únicos limpiamente
+            tab1, tab2 = st.tabs(["💬 Casos Totales (Llamadas)", "👤 Casos Únicos (Cuentas Tocadas)"])
+            
+            with tab1:
+                st.subheader("Evolución Diaria - Gestiones Hechas")
+                st.dataframe(dinamica_totales, use_container_width=True)
+                
+            with tab2:
+                st.subheader("Evolución Diaria - Clientes Únicos Contactados")
+                st.dataframe(dinamica_unicos, use_container_width=True)
 
 else:
     # Mensaje de bienvenida si todavía falta subir algún archivo
