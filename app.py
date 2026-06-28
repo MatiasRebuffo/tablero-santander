@@ -4,20 +4,13 @@ import pandas as pd
 # Configuramos la página para que se vea ancha y linda
 st.set_page_config(page_title="Tablero Santander - Besser Weiss", layout="wide")
 
-# --- TRUCO CSS PARA PEGAR EL LOGO ARRIBA DEL TODO ---
-st.markdown("""
-    <style>
-    [data-testid="stSidebarUserContent"] {
-        padding-top: 1rem !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
 # --- BARRA LATERAL (SIDEBAR) ---
-# Colocamos tu logo real apuntando al archivo correcto de tu repositorio
+# Colocamos el logo arriba de todo en la barra lateral
+# Nota: Asegurate de subir la imagen 'logo.png' a tu GitHub junto al archivo app.py
 try:
-    st.sidebar.image("image_3f4829.png", use_container_width=True)
+    st.sidebar.image("logo.png", use_container_width=True)
 except:
+    # Si aún no subiste la imagen, muestra el nombre en texto para no romper la app
     st.sidebar.header("🛡️ Besser Weiss")
 
 st.sidebar.header("📁 Carga de Archivos Crudos")
