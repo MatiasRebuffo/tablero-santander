@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 
 # Configuramos la página para que se vea ancha y linda
 st.set_page_config(page_title="Tablero Santander - Besser Weiss", layout="wide")
@@ -68,11 +69,10 @@ if archivo_base and archivo_pagos and archivo_gestiones:
         m3.metric("% Efectividad", f"{(clientes_que_pagaron / total_clientes_base * 100):.2f}%")
         m4.metric("Total Recaudado", f"${total_recaudado:,.2f}")
 
-        # --- NUEVA SECCIÓN: EVOLUCIÓN DIARIA DE PAGOS (LINEA DE TIEMPO) ---
+        # --- NUEVA SECCIÓN: EVOLUCIÓN DIARIA DE PAGOS INTERACTIVA (ESTILO LINE/AREA) ---
         st.write("---")
         st.header("📉 Evolución Diaria de Ingresos (Recaudación)")
         
-        # Intentamos buscar la columna de fecha en el archivo de pagos
         col_fecha_pagos = [col for col in df_pagos.columns if 'FECHA' in col]
         
         if col_fecha_pagos:
@@ -80,16 +80,50 @@ if archivo_base and archivo_pagos and archivo_gestiones:
             # Convertimos a tipo Fecha de forma segura
             df_pagos['FECHA_LIMPIA'] = pd.to_datetime(df_pagos[nombre_col_fecha], errors='coerce')
             
-            # Agrupamos los pagos por día sumando los importes
+            # Agrupamos los pagos por día sumando los importes y ordenamos cronológicamente
             df_linea_tiempo = df_pagos.groupby('FECHA_LIMPIA')['IMPORTE'].sum().reset_index()
             df_linea_tiempo = df_linea_tiempo.dropna().sort_values('FECHA_LIMPIA')
             
-            # Renombramos para que el gráfico quede prolijo
-            df_linea_tiempo = df_linea_tiempo.set_index('FECHA_LIMPIA')
-            df_linea_tiempo.columns = ['Total Recaudado ($)']
+            # Forzamos las fechas a formato texto en español (DD/MM/YYYY) para anular el formato inglés automático
+            fechas_espanol = df_linea_tiempo['FECHA_LIMPIA'].dt.strftime('%d/%m/%Y').tolist()
+            valores_recaudados = df_linea_tiempo['IMPORTE'].tolist()
             
-            # Mostramos el gráfico de área (idéntico en comportamiento al estilo solicitado)
-            st.area_chart(df_linea_tiempo, use_container_width=True)
+            # Construimos el gráfico interactivo usando Plotly para igualar el estilo solicitado
+            fig = go.Figure()
+            
+            fig.add_trace(go.Scatter(
+                x=fechas_espanol,
+                y=valores_recaudados,
+                mode='lines+markers',                # Líneas continuas con puntos marcadores
+                line=dict(shape='spline', width=3, color='#1f77b4'), # 'spline' suaviza la curva como la imagen
+                marker=dict(size=8, color='#ffffff', line=dict(color='#1f77b4', width=2)), # Círculos rellenos
+                fill='tozeroy',                      # Pinta el área de fondo hasta el eje cero
+                fillcolor='rgba(31, 119, 180, 0.15)', # Azul translúcido y sutil para el sombreado
+                name='Recaudación Diaria'
+            ))
+            
+            # Ajustamos la estética general del gráfico para que se asimile al entorno oscuro/limpio
+            fig.update_layout(
+                margin=dict(l=40, r=40, t=20, b=40),
+                hovermode="x unified",
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(
+                    showgrid=False,
+                    tickmode='linear',
+                    tickangle=-45,
+                    type='category' # Forzado a categoría para respetar estrictamente las cadenas de texto del eje X
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(255,255,255,0.05)', # Grilla horizontal muy sutil
+                    tickformat="$,"                     # Formato de dinero en el eje Y
+                ),
+                showlegend=False,
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("ℹ️ No se detectó una columna con la palabra 'FECHA' en el archivo de pagos para armar la línea de tiempo.")
 
